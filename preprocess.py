@@ -5,6 +5,28 @@ CARD_SIGNATURE_HEIGHT = 145
 CARD_SIGNATURE_WIDTH = 52
 
 
+class Card:
+    def __init__(self, image, signature):
+        self.image = image
+        self.signature = signature
+
+
+def imread_patterns_and_signatures(filenames):
+    result = {}
+    pattern_folder_path = "./patterns/"
+    signature_folder_path = "./signatures/"
+    file_extension = ".jpg"
+
+    for filename in filenames:
+        pattern = cv2.imread(pattern_folder_path + filename + file_extension)
+        signature = cv2.imread(signature_folder_path + filename + file_extension)
+        signature = cv2.cvtColor(signature, cv2.COLOR_BGR2GRAY)
+        card = Card(pattern, signature)
+        result[filename] = card
+
+    return result
+
+
 def preprocess_image(image):
     # Apply GaussianBlur to reduce noise and help edge detection
     blurred = cv2.GaussianBlur(image, (5, 5), 0)
@@ -71,8 +93,22 @@ def preprocess_card(card):
     return thresh
 
 
-def match_card(card):
-    pass
+def match_card(card_signature, cards_patern_and_signature, card_names):
+    similarity = 99999  # im mniejsza wartosc tym karty podobne
+    match_card_name = None
+
+    for card_name in card_names:
+        diff_between_signatures = calc_similarity_between_signatures(card_signature,
+                                                                     cards_patern_and_signature[card_name].signature)
+        if diff_between_signatures < similarity:
+            similarity = diff_between_signatures
+            match_card_name = card_name
+
+    print(similarity)
+    print(match_card_name)
+    cv2.imshow("Card Signature", cards_patern_and_signature[match_card_name].signature)
+    cv2.waitKey(0)
+    print("\n")
 
 
 def calc_similarity_between_signatures(image_signature, pattern_signature):
@@ -87,52 +123,59 @@ def get_card_signature(card):
     return part_thresh
 
 
-def show_card_from_frame(frame):
+def show_card_from_frame(frame, cards_pattern_and_signature, filenames):
     image1 = preprocess_image(frame)
     cards, card_contours = find_cards(image1, frame)
 
     for card, contour in zip(cards, card_contours):
         cv2.imshow("Card", card)
-        cv2.waitKey(20)
 
+        card_signature = get_card_signature(card)
+        match_card(card_signature, cards_pattern_and_signature, filenames)
+
+        cv2.waitKey(1000)
+
+
+filenames = ["trefl_as", "trefl_krol", "trefl_dama", "trefl_walet", "trefl_10", "trefl_9", "trefl_8", "trefl_7",
+             "trefl_6",
+             "trefl_5", "trefl_4", "trefl_3", "trefl_2",
+             "kier_as", "kier_krol", "kier_dama", "kier_walet", "kier_10", "kier_9", "kier_8", "kier_7",
+             "karo_7"]
 
 #################   MAIN - wersja statyczna z pojedynczym zdjęciem ###########################################
 
-# image_filename = "kier_as.jpg"
-# pattern_signature_filename = "kier_dama.jpg"
-#
-# image = cv2.imread("./images/" + image_filename)
+# cards_pattern_and_signature =  imread_patterns_and_signatures(filenames)
+
+# image_filename = "trefl_as.jpg"
+
+# image = cv2.imread(image_filename)
 # image_after_preprocess = preprocess_image(image)
-#
+
 # resized_image = cv2.resize(image_after_preprocess, (960, 540))
 # cv2.imshow("Image", resized_image)
 # cv2.waitKey(0)
-#
-# pattern_signature = cv2.imread("./signatures/"+pattern_signature_filename)
-# pattern_signature = cv2.cvtColor(pattern_signature, cv2.COLOR_BGR2GRAY)
-#
+
 # cards, card_contours = find_cards(image_after_preprocess, image)
-#
+
 # for card, contour in zip(cards, card_contours):
 #     cv2.imshow("Card", card)
-#
+
 #     card_signature = get_card_signature(card)
 #     cv2.imshow("Card Signature", card_signature)
-#
-#     cv2.imshow("Patern", pattern_signature)
+
+#     match_card(card_signature, cards_pattern_and_signature, filenames)
 #     cv2.waitKey(0)
-#
-#     diff_between_signatures = calc_similarity_between_signatures(card_signature,pattern_signature)
-#     print(diff_between_signatures)
-#
-# #     cv2.imwrite("./signatures/"+image_filename, card_signature)
-# #     cv2.imwrite("./patterns/"+pattern_signature_filename, card)
-# 
-#
+
+# #     cv2.imwrite("./figury/"+image_filename, card_signature)
+# #     cv2.imwrite("./wzorce_karty/"+pattern_signature_filename, card)
+
+
 # cv2.destroyAllWindows()
 
 
 #################   MAIN - wersja z wideo ###########################################
+
+cards_pattern_and_signature = imread_patterns_and_signatures(filenames)
 
 video_path = "./images/wideo.mp4"
 cap = cv2.VideoCapture(video_path)
@@ -153,8 +196,8 @@ while True:
         print("Koniec pliku wideo.")
         break
 
-    if frame_indx == 20:
-        show_card_from_frame(frame)
+    if frame_indx == 90:
+        show_card_from_frame(frame, cards_pattern_and_signature, filenames)
         frame_indx = 0
 
     resized_frame = cv2.resize(frame, (frame_width, frame_height))
