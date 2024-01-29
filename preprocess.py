@@ -34,8 +34,12 @@ class Suit:
     def __init__(self, image):
         self.image = image
 class Card:
-    def __init__(self, image):
+    def __init__(self, image, name):
         self.image = image
+        self.name = name
+        self.count = 0
+    def show_stat(self):
+        print(self.name , " - ilość: ", self.count)
 
 def imread_cards(cards_name):
     folder_path = "./patterns/"
@@ -43,7 +47,7 @@ def imread_cards(cards_name):
     cards = {}
     for card_name in cards_name:
         card_image = cv2.imread(folder_path + card_name + extension)
-        card = Card(card_image)
+        card = Card(card_image, card_name)
         cards[card_name] = card
     return cards
 
@@ -185,7 +189,7 @@ def match_card(card, suits, ranks, cards_patern):
 
     patern_card_name =  match_suit_name + "_" + match_rank_name
     print("Wykryto karte: ", patern_card_name, ". Stopien podobienstwa (kolor, figura): (", similarity_suit, ",", similarity_rank, ")")
-    return cards_patern[patern_card_name].image
+    return cards_patern[patern_card_name].image, patern_card_name
 
 
 def calc_similarity_between_signatures(image_signature, pattern_signature):
@@ -244,9 +248,11 @@ def show_card_from_frame(frame, suits, ranks, cards_patern, detector):
     for card, contour in zip(cards, card_contours):
         cv2.imshow("Card", card)
         #wyświetlanie karty wzorcowej
-        card_patern = match_card(card, suits, ranks, cards_patern)
+        card_patern, card_name = match_card(card, suits, ranks, cards_patern)
         cv2.imshow("Wzorzec", card_patern)
         cv2.waitKey(30)
+        #aktualizacja statystyk
+        cards_patern[card_name].count += 1
 
     return len(cards), demaged_cards_count
 ############ wgrywanie wzorców wykorzystywane do póżniejszej analizy #########
@@ -335,10 +341,16 @@ while True:
 
     if cv2.waitKey(10) & 0xFF == ord('q'):
         break
+
+cap.release()
+cv2.destroyAllWindows()
+
 print("\nPODSUMOWANIE:")
 print("Wszystkich kart bylo: ", all_cards_count)
 print("Dobrych kart bylo: ", all_cards_count - all_damaged_cards_count)
 print("Uszkodzonych kart bylo: ", all_damaged_cards_count)
 
-cap.release()
-cv2.destroyAllWindows()
+
+print("\nPODSUMOWANIE SZCZEGOLOWE POSZCZEGOLNYCH KART:")
+for card_name in CARDS_NAME:
+    cards_pattern[card_name].show_stat()
