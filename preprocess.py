@@ -3,10 +3,16 @@ import numpy as np
 
 CARD_SIGNATURE_HEIGHT = 145
 CARD_SIGNATURE_WIDTH = 52
-MIN_CARD_WIDTH = 400
-MAX_CARD_WIDTH = 600
-MIN_CARD_HEIGHT = 280
-MAX_CARD_HEIGHT = 400
+MIN_CARD_WIDTH = 510
+MAX_CARD_WIDTH = 590
+MIN_CARD_HEIGHT = 310
+MAX_CARD_HEIGHT = 390
+
+MIN_CARD_AREA = 500*290
+MAX_CARD_AREA = 560*380
+
+
+SIMILARITY_THRESHOLD = 0.8
 
 CARDS_NAME = ["trefl_as", "trefl_krol", "trefl_dama", "trefl_walet", "trefl_10", "trefl_9", "trefl_8", "trefl_7",
              "trefl_6",
@@ -72,9 +78,16 @@ def preprocess_image(image):
 
 def find_cards(image_after_preprocess, original_image):
     # Find contours in the edged image
-    edges = cv2.Canny(image_after_preprocess, 50, 150)
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    index_sort = sorted(range(len(contours)), key=lambda i: cv2.contourArea(contours[i]), reverse=True)
+    gray = cv2.cvtColor(image_after_preprocess, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (5,5),0)
+
+    img_w, img_h = np.shape(blur)[:2]
+    bkg_level = blur[int(img_h/100)][int(img_w/2)]
+    thresh_level = bkg_level + 60
+
+    retval, thresh = cv2.threshold(blur,thresh_level,255,cv2.THRESH_BINARY)
+
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # Iterate through the contours and filter out potential card shapes
     card_contours = []
@@ -82,20 +95,26 @@ def find_cards(image_after_preprocess, original_image):
     for contour in contours:
         perimeter = cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
-        # Card shapes typically have 4 corners
-        if len(approx) == 4:
-            card_contours.append(approx)
-            count += 1
-    print("Ile wykrylo prostokatow w klatce: ", count)
+        card_contours.append(approx)
+        count += 1
+
     # Extract the region of interest (ROI) for each card
     cards = []
+    damaged_cards = 0
     for card_contour in card_contours:
         x, y, w, h = cv2.boundingRect(card_contour)
         if w < MIN_CARD_WIDTH or w > MAX_CARD_WIDTH or h < MIN_CARD_HEIGHT or h > MAX_CARD_HEIGHT:
             continue
+        if len(card_contour) != 4 and w*h > MIN_CARD_AREA and w*h < MAX_CARD_AREA:
+            # print("Dane o wykrytej karcie x: ", x, "y:", y, "w:", w, "h: ", h, "rogow: ",len(card_contour) )
+            # print("Karta nie ma 4 rogow")
+            cv2.imshow("Uszkodzona", original_image[y:y+h, x:x+w])
+            cv2.waitKey(30)
+            damaged_cards += 1
+            continue
 
-        print("Dane o wykrytej karcie x: ", x, "y:", y, "w:", w, "h: ", h)
-        print("\n")
+        # print("Dane o wykrytej karcie x: ", x, "y:", y, "w:", w, "h: ", h)
+        # print("\n")
 
         # Sorting a list of corners based on the second element's value
         sorted_list = sorted(card_contour, key=lambda x: x[0][1])
@@ -121,7 +140,7 @@ def find_cards(image_after_preprocess, original_image):
 
         cards.append(rotated_image)
 
-    return cards, card_contours
+    return cards, card_contours, damaged_cards
 
 
 def preprocess_card(card):
@@ -132,7 +151,6 @@ def preprocess_card(card):
 
     bkg_level = gray[int(img_w/100)][int(img_h/2)]
     thresh_level = bkg_level - 30
-    print("Thresh_level fragmentu karty wynosi: ", thresh_level)
 
     retval, thresh = cv2.threshold(blur,thresh_level,255,cv2.THRESH_BINARY)
 
@@ -166,6 +184,7 @@ def match_card(card, suits, ranks, cards_patern):
             match_rank_name = patern_rank_name
 
     patern_card_name =  match_suit_name + "_" + match_rank_name
+    print("Wykryto karte: ", patern_card_name, ". Stopien podobienstwa (kolor, figura): (", similarity_suit, ",", similarity_rank, ")")
     return cards_patern[patern_card_name].image
 
 
@@ -182,16 +201,15 @@ def get_card_signature(card):
     # Sample known white pixel intensity to determine good threshold level
     white_level = part[15, int(CARD_SIGNATURE_WIDTH / 2)]
     thresh_level = white_level - 30
-    print(thresh_level)
     if (thresh_level <= 0):
         thresh_level = 1
     retval, query_thresh = cv2.threshold(part, thresh_level, 255, cv2.THRESH_BINARY_INV)
 
     cv2.imshow("card signature", query_thresh)
-    cv2.waitKey(500)
+    cv2.waitKey(30)
 
     # Split in to top and bottom half (top shows rank, bottom shows suit)
-    suit = query_thresh[85 : CARD_SIGNATURE_HEIGHT , 0:CARD_SIGNATURE_WIDTH]
+    suit = query_thresh[78 : CARD_SIGNATURE_HEIGHT , 0:CARD_SIGNATURE_WIDTH]
     rank = query_thresh[0 : 85 , 0:CARD_SIGNATURE_WIDTH]
 
     # Find rank contour and bounding rectangle, isolate and find largest contour
@@ -211,26 +229,26 @@ def get_card_signature(card):
     return rank, suit
 
 
-def show_card_from_frame(frame, suits, ranks, cards_patern):
+def show_card_from_frame(frame, suits, ranks, cards_patern, detector):
 
     height, width, channels = frame.shape
 
-    left_border = int(0 + width/4)
-    right_border = int(width - width/4)
+    left_border = int(0 + width/2.8)
+    right_border = int(width - width/2.8)
     new_frame = frame[:, left_border : right_border]
 
     image1 = preprocess_image(new_frame)
 
-    cards, card_contours = find_cards(image1, new_frame)
+    cards, card_contours, demaged_cards_count = find_cards(image1, new_frame)
 
     for card, contour in zip(cards, card_contours):
         cv2.imshow("Card", card)
         #wyświetlanie karty wzorcowej
         card_patern = match_card(card, suits, ranks, cards_patern)
         cv2.imshow("Wzorzec", card_patern)
-        cv2.waitKey(100)
+        cv2.waitKey(30)
 
-
+    return len(cards), demaged_cards_count
 ############ wgrywanie wzorców wykorzystywane do póżniejszej analizy #########
 
 suits = imread_suit(SUIT_NAME)
@@ -274,7 +292,11 @@ cards_pattern = imread_cards(CARDS_NAME)
 
 
 #################   MAIN - wersja z wideo ###########################################
-video_path = "./images/wideo.mp4"
+from Classes.CardDetector import CardDetector
+
+detector = CardDetector()
+
+video_path = "./uszkodzenie_1.mp4"
 cap = cv2.VideoCapture(video_path)
 
 
@@ -288,28 +310,35 @@ frame_width = 500
 frame_height = 300
 
 frame_indx = 0 #służy do określenia co którą klatkę ma pobierać obraz do analizy
-
+all_cards_count = 0
+all_damaged_cards_count = 0
 while True:
     ret, frame = cap.read()
     if not ret:
         print("Koniec pliku wideo.")
         break
 
-    if frame_indx == 10:
-        show_card_from_frame(frame, suits, ranks, cards_pattern)
+    if frame_indx == 8:
+        goods_cards_count, damaged_cards_count = show_card_from_frame(frame, suits, ranks, cards_pattern, detector)
+        all_damaged_cards_count += damaged_cards_count
+        all_cards_count += damaged_cards_count + goods_cards_count
         frame_indx = 0
 
     resized_frame = cv2.resize(frame, (frame_width, frame_height))
-    left_border = int(frame_width/4)
-    right_border = int(frame_width - frame_width / 4)
+    left_border = int(frame_width/2.8)
+    right_border = int(frame_width - frame_width / 2.8)
     cv2.line(resized_frame, (left_border, 0), (left_border, resized_frame.shape[0]), (0, 255, 0), 2)
     cv2.line(resized_frame, (right_border, 0), (right_border, resized_frame.shape[0]), (0, 255, 0), 2)
 
     cv2.imshow('Frame', resized_frame)
     frame_indx += 1
 
-    if cv2.waitKey(50) & 0xFF == ord('q'):  # Czekaj 50 ms między klatkami
+    if cv2.waitKey(10) & 0xFF == ord('q'):
         break
+print("\nPODSUMOWANIE:")
+print("Wszystkich kart bylo: ", all_cards_count)
+print("Dobrych kart bylo: ", all_cards_count - all_damaged_cards_count)
+print("Uszkodzonych kart bylo: ", all_damaged_cards_count)
 
 cap.release()
 cv2.destroyAllWindows()

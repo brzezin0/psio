@@ -3,6 +3,19 @@ import numpy as np
 from skimage import feature
 from skimage.metrics import structural_similarity as ssim
 
+def preprocess_card(card):
+    gray = cv2.cvtColor(card, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    img_w, img_h = np.shape(card)[:2]
+
+    bkg_level = gray[int(img_w/100)][int(img_h/2)]
+    thresh_level = bkg_level - 30
+    print("Thresh_level fragmentu karty wynosi: ", thresh_level)
+
+    retval, thresh = cv2.threshold(blur,thresh_level,255,cv2.THRESH_BINARY)
+
+    return thresh
 
 class CardDetector:
     def __init__(self):
@@ -69,12 +82,12 @@ class CardDetector:
         score, _ = ssim(gray_image, gray_template, full=True)
         return score
 
-    def detect_playing_card(self, image_path, template_path, similarity_threshold):
-        image = cv2.imread(image_path)
-        template = cv2.imread(template_path)
+    def detect_playing_card(self, image, template, similarity_threshold):
+        # image = cv2.imread(image_path)
+        # template = cv2.imread(template_path)
 
-        processed_image = self.preprocess_image(image)
-        processed_template = self.preprocess_image(template)
+        processed_image = image #self.preprocess_image(image)
+        processed_template = template #self.preprocess_image(template)
 
         color_similarity = self.compare_color_histogram(image, template)
         shape_similarity = self.compare_shapes(processed_image, processed_template)
@@ -82,15 +95,28 @@ class CardDetector:
         feature_similarity = self.compare_features(image, template)
         structure_similarity = self.compare_structure(image, template)
 
+        processed_image = preprocess_card(image)
+        processed_template = preprocess_card(template)
+
+        diff_img = cv2.absdiff(processed_image, processed_template)
+        rank_diff = int(np.sum(diff_img) / 255)
+        print("RANK DIFF: ", rank_diff)
+
         print(color_similarity)
         print(texture_similarity)
         print(feature_similarity)
         print(structure_similarity)
-        if all([color_similarity > similarity_threshold,
-                texture_similarity < (1 - similarity_threshold),
-                # For texture lower value means bigger probability
-                feature_similarity > 80
-                ]):
-            return True, image
+
+        if rank_diff < 10000:
+            return True, None
         else:
             return False, None
+
+        # if all([color_similarity > similarity_threshold,
+        #         texture_similarity < (1 - similarity_threshold),
+        #         # For texture lower value means bigger probability
+        #         feature_similarity > 80
+        #         ]):
+        #     return True, image
+        # else:
+        #     return False, None
