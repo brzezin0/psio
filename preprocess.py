@@ -1,5 +1,8 @@
 import cv2
+import matplotlib
 import numpy as np
+import matplotlib.pyplot as plt
+matplotlib.use('TkAgg')
 
 CARD_SIGNATURE_HEIGHT = 145
 CARD_SIGNATURE_WIDTH = 52
@@ -349,8 +352,20 @@ print("\nPODSUMOWANIE:")
 print("Wszystkich kart bylo: ", all_cards_count)
 print("Dobrych kart bylo: ", all_cards_count - all_damaged_cards_count)
 print("Uszkodzonych kart bylo: ", all_damaged_cards_count)
+good_cards_count = all_cards_count - all_damaged_cards_count
 
+labels = ['Uszkodzone karty', 'Nieuszkodzone karty']
 
+sizes = [all_damaged_cards_count, good_cards_count]
+
+colors = ['#CE0A0A','#3965D4']
+
+# Tworzenie diagramu kołowego
+plt.figure(figsize=(8, 6))
+plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
+plt.axis('equal')
+plt.title('Udział kart uszkodzonych i nieuszkodzonych')
+plt.show()
 print("\nPODSUMOWANIE SZCZEGOLOWE POSZCZEGOLNYCH KART:")
 for card_name in CARDS_NAME:
     cards_pattern[card_name].show_stat()
