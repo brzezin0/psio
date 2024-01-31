@@ -236,7 +236,7 @@ def get_card_signature(card):
     return rank, suit
 
 
-def show_card_from_frame(frame, suits, ranks, cards_patern, detector):
+def show_card_from_frame(frame, suits, ranks, cards_patern):
 
     height, width, channels = frame.shape
 
@@ -287,7 +287,7 @@ while True:
         break
 
     if frame_indx == 8:
-        goods_cards_count, damaged_cards_count = show_card_from_frame(frame, suits, ranks, cards_pattern, detector)
+        goods_cards_count, damaged_cards_count = show_card_from_frame(frame, suits, ranks, cards_pattern)
         all_damaged_cards_count += damaged_cards_count
         all_cards_count += damaged_cards_count + goods_cards_count
         frame_indx = 0
