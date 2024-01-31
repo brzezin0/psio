@@ -113,15 +113,10 @@ def find_cards(image_after_preprocess, original_image):
         if w < MIN_CARD_WIDTH or w > MAX_CARD_WIDTH or h < MIN_CARD_HEIGHT or h > MAX_CARD_HEIGHT:
             continue
         if len(card_contour) != 4 and w*h > MIN_CARD_AREA and w*h < MAX_CARD_AREA:
-            # print("Dane o wykrytej karcie x: ", x, "y:", y, "w:", w, "h: ", h, "rogow: ",len(card_contour) )
-            # print("Karta nie ma 4 rogow")
             cv2.imshow("Uszkodzona", original_image[y:y+h, x:x+w])
             cv2.waitKey(30)
             damaged_cards += 1
             continue
-
-        # print("Dane o wykrytej karcie x: ", x, "y:", y, "w:", w, "h: ", h)
-        # print("\n")
 
         # Sorting a list of corners based on the second element's value
         sorted_list = sorted(card_contour, key=lambda x: x[0][1])
@@ -163,7 +158,7 @@ def preprocess_card(card):
 
     return thresh
 
-#### Funkcja zwraca kartę wzorcową, która wg niej pasuje do dostarczonej karty z ramki wideo ###
+#### The function returns a reference card that it deems matches the provided card from the video frame ###
 def match_card(card, suits, ranks, cards_patern):
     similarity_suit = 99999  # im mniejsza wartosc tym karty podobne
     similarity_rank = 99999
@@ -174,7 +169,7 @@ def match_card(card, suits, ranks, cards_patern):
 
     card_rank, card_suit = get_card_signature(card)
 
-    #porównuje i szukam dopasowania w kolorze karty
+    #compare and look for a match in the card's suit
     for patern_suit_name in SUIT_NAME:
         patern = cv2.resize(suits[patern_suit_name].image, (card_suit.shape[1],card_suit.shape[0]))
         diff_between_signatures = calc_similarity_between_signatures(card_suit, patern)
@@ -182,7 +177,7 @@ def match_card(card, suits, ranks, cards_patern):
             similarity_suit = diff_between_signatures
             match_suit_name = patern_suit_name
 
-    # porównuje i szukam dopasowania w figurze karty
+    #compare and look for a match in the card's rank.
     for patern_rank_name in RANK_NAME:
         patern = cv2.resize(ranks[patern_rank_name].image, (card_rank.shape[1],card_rank.shape[0]) )
         diff_between_signatures = calc_similarity_between_signatures(card_rank, patern)
@@ -258,26 +253,24 @@ def show_card_from_frame(frame, suits, ranks, cards_patern):
         cards_patern[card_name].count += 1
 
     return len(cards), demaged_cards_count
-############ wgrywanie wzorców wykorzystywane do póżniejszej analizy #########
 
+
+#################   MAIN   ###########################################
 suits = imread_suit(SUIT_NAME)
 ranks = imread_rank(RANK_NAME)
 cards_pattern = imread_cards(CARDS_NAME)
 
-#################   MAIN - wersja z wideo ###########################################
 video_path = "wideo.mp4"
 cap = cv2.VideoCapture(video_path)
 
-# Sprawdź, czy plik wideo został prawidłowo otwarty
 if not cap.isOpened():
     print("Błąd podczas otwierania pliku wideo.")
     exit()
 
-# Ustaw nowe wymiary ramki (np. szerokość = 500, wysokość = 300)
 frame_width = 500
 frame_height = 300
 
-frame_indx = 0 #służy do określenia co którą klatkę ma pobierać obraz do analizy
+frame_indx = 0
 all_cards_count = 0
 all_damaged_cards_count = 0
 while True:
@@ -319,7 +312,7 @@ sizes = [all_damaged_cards_count, good_cards_count]
 
 colors = ['#CE0A0A','#3965D4']
 
-# Tworzenie diagramu kołowego
+# Creating a pie chart.
 plt.figure(figsize=(8, 6))
 plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
 plt.axis('equal')
